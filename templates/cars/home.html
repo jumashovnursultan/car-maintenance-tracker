@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+
+{% block title %}Главная - Car Tracker{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto text-center">
+        <h1 class="display-4 mb-4">
+            <i class="bi bi-car-front-fill text-primary"></i>
+            Car Maintenance Tracker
+        </h1>
+        <p class="lead mb-4">
+            Ведите учёт ремонтов вашего автомобиля, получайте напоминания о техническом обслуживании
+        </p>
+
+        {% if user.is_authenticated %}
+        <a href="{% url 'cars_list' %}" class="btn btn-primary btn-lg me-2">
+            <i class="bi bi-list-ul"></i> Мои машины
+        </a>
+        <a href="{% url 'repairs_list' %}" class="btn btn-outline-primary btn-lg">
+            <i class="bi bi-tools"></i> История ремонтов
+        </a>
+        {% else %}
+        <a href="{% url 'login' %}" class="btn btn-primary btn-lg me-2">
+            <i class="bi bi-box-arrow-in-right"></i> Войти
+        </a>
+        <a href="{% url 'register' %}" class="btn btn-outline-primary btn-lg">
+            <i class="bi bi-person-plus"></i> Регистрация
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row mt-5">
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="bi bi-car-front display-4 text-primary"></i>
+                <h5 class="card-title mt-3">Учёт автомобилей</h5>
+                <p class="card-text">Добавляйте и управляйте информацией о ваших автомобилях</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="bi bi-tools display-4 text-primary"></i>
+                <h5 class="card-title mt-3">История ремонтов</h5>
+                <p class="card-text">Записывайте все ремонтные работы и расходы</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="bi bi-bell display-4 text-primary"></i>
+                <h5 class="card-title mt-3">Напоминания о ТО</h5>
+                <p class="card-text">Получайте уведомления о необходимости обслуживания</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

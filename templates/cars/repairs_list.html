@@ -1,0 +1,308 @@
+{% extends 'base.html' %}
+
+{% block title %}Ремонты - Car Tracker{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-tools"></i> История ремонтов</h2>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addRepairModal">
+        <i class="bi bi-plus-circle"></i> Добавить ремонт
+    </button>
+</div>
+
+<!-- Фильтр по машине -->
+<div class="mb-3">
+    <select class="form-select" id="carFilter" style="max-width: 300px;">
+        <option value="">Все машины</option>
+    </select>
+</div>
+
+<!-- Список ремонтов -->
+<div id="repairsList">
+    <div class="text-center">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Загрузка...</span>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно добавления ремонта -->
+<div class="modal fade" id="addRepairModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Добавить ремонт</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addRepairForm">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Автомобиль *</label>
+                            <select class="form-select" id="repairCar" required></select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Сервис</label>
+                            <select class="form-select" id="repairService">
+                                <option value="">Без сервиса</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Тип работы *</label>
+                            <select class="form-select" id="repairType" required>
+                                <option value="maintenance">Техническое обслуживание</option>
+                                <option value="repair">Ремонт</option>
+                                <option value="replacement">Замена деталей</option>
+                                <option value="diagnostics">Диагностика</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Дата *</label>
+                            <input type="date" class="form-control" id="repairDate" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Описание работ *</label>
+                        <textarea class="form-control" id="repairDescription" rows="3" required></textarea>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Стоимость *</label>
+                            <input type="number" class="form-control" id="repairCost" min="0" step="0.01" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Пробег (км) *</label>
+                            <input type="number" class="form-control" id="repairMileage" min="0" required>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-danger d-none" id="repairFormError"></div>
+                    <button type="submit" class="btn btn-primary w-100">Сохранить</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script>
+    const REPAIRS_API = '/api/repairs/';
+    const CARS_API = '/api/cars/';
+    const SERVICES_API = '/api/services/';
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    const csrftoken = getCookie('csrftoken');
+    axios.defaults.headers.common['X-CSRFToken'] = csrftoken;
+
+    let allRepairs = [];
+    let allCars = [];
+    let allServices = [];
+
+    // Загрузка данных
+    async function loadData() {
+        try {
+            const [repairsRes, carsRes, servicesRes] = await Promise.all([
+                axios.get(REPAIRS_API),
+                axios.get(CARS_API),
+                axios.get(SERVICES_API)
+            ]);
+
+            allRepairs = repairsRes.data;
+            allCars = carsRes.data;
+            allServices = servicesRes.data;
+
+            populateCarFilter();
+            populateCarSelect();
+            populateServiceSelect();
+            displayRepairs(allRepairs);
+
+        } catch (error) {
+            console.error('Ошибка загрузки данных:', error);
+            document.getElementById('repairsList').innerHTML = `
+                <div class="alert alert-danger">Ошибка загрузки данных</div>
+            `;
+        }
+    }
+
+    // Заполнить фильтр по машинам
+    function populateCarFilter() {
+        const filter = document.getElementById('carFilter');
+        allCars.forEach(car => {
+            const option = document.createElement('option');
+            option.value = car.id;
+            option.textContent = `${car.brand} ${car.model} (${car.year})`;
+            filter.appendChild(option);
+        });
+
+        filter.addEventListener('change', (e) => {
+            const carId = e.target.value;
+            if (carId) {
+                const filtered = allRepairs.filter(r => r.car.id == carId);
+                displayRepairs(filtered);
+            } else {
+                displayRepairs(allRepairs);
+            }
+        });
+    }
+
+    // Заполнить выбор машины в форме
+    function populateCarSelect() {
+        const select = document.getElementById('repairCar');
+        allCars.forEach(car => {
+            const option = document.createElement('option');
+            option.value = car.id;
+            option.textContent = `${car.brand} ${car.model} (${car.year})`;
+            select.appendChild(option);
+        });
+    }
+
+    // Заполнить выбор сервиса
+    function populateServiceSelect() {
+        const select = document.getElementById('repairService');
+        allServices.forEach(service => {
+            const option = document.createElement('option');
+            option.value = service.id;
+            option.textContent = service.name;
+            select.appendChild(option);
+        });
+    }
+
+    // Отобразить ремонты
+    function displayRepairs(repairs) {
+        const container = document.getElementById('repairsList');
+
+        if (repairs.length === 0) {
+            container.innerHTML = `
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> Нет записей о ремонтах. Добавьте первый ремонт!
+                </div>
+            `;
+            return;
+        }
+
+        const typeLabels = {
+            'maintenance': 'ТО',
+            'repair': 'Ремонт',
+            'replacement': 'Замена деталей',
+            'diagnostics': 'Диагностика'
+        };
+
+        container.innerHTML = `
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Автомобиль</th>
+                            <th>Дата</th>
+                            <th>Тип</th>
+                            <th>Описание</th>
+                            <th>Стоимость</th>
+                            <th>Пробег</th>
+                            <th>ТО требуется</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${repairs.map(repair => `
+                            <tr>
+                                <td>${repair.car.brand} ${repair.car.model}</td>
+                                <td>${new Date(repair.date).toLocaleDateString('ru-RU')}</td>
+                                <td><span class="badge bg-primary">${typeLabels[repair.repair_type]}</span></td>
+                                <td>${repair.description}</td>
+                                <td>${repair.cost.toLocaleString()} ₽</td>
+                                <td>${repair.mileage_at_repair.toLocaleString()} км</td>
+                                <td>
+                                    ${repair.needs_maintenance
+                ? '<span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle"></i> Да</span>'
+                : '<span class="badge bg-success"><i class="bi bi-check-circle"></i> Нет</span>'
+            }
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteRepair(${repair.id})">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    // Добавить ремонт
+    document.getElementById('addRepairForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const serviceId = document.getElementById('repairService').value;
+
+        const data = {
+            car_id: parseInt(document.getElementById('repairCar').value),
+            service_id: serviceId ? parseInt(serviceId) : null,
+            repair_type: document.getElementById('repairType').value,
+            description: document.getElementById('repairDescription').value,
+            date: document.getElementById('repairDate').value,
+            cost: parseFloat(document.getElementById('repairCost').value),
+            mileage_at_repair: parseInt(document.getElementById('repairMileage').value)
+        };
+
+        try {
+            await axios.post(REPAIRS_API, data);
+
+            const modal = bootstrap.Modal.getInstance(document.getElementById('addRepairModal'));
+            modal.hide();
+
+            document.getElementById('addRepairForm').reset();
+            document.getElementById('repairFormError').classList.add('d-none');
+
+            loadData();
+
+        } catch (error) {
+            console.error('Ошибка добавления ремонта:', error);
+            const errorDiv = document.getElementById('repairFormError');
+            errorDiv.textContent = 'Ошибка при добавлении ремонта';
+            errorDiv.classList.remove('d-none');
+        }
+    });
+
+    // Удалить ремонт
+    async function deleteRepair(repairId) {
+        if (!confirm('Удалить этот ремонт?')) return;
+
+        try {
+            await axios.delete(`${REPAIRS_API}${repairId}/`);
+            loadData();
+        } catch (error) {
+            console.error('Ошибка удаления:', error);
+            alert('Ошибка при удалении ремонта');
+        }
+    }
+
+    // Установить сегодняшнюю дату по умолчанию
+    document.getElementById('repairDate').valueAsDate = new Date();
+
+    // Загрузка при открытии страницы
+    loadData();
+</script>
+{% endblock %}

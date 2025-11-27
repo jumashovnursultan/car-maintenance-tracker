@@ -1,0 +1,212 @@
+{% extends 'base.html' %}
+
+{% block title %}Мои машины - Car Tracker{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-car-front-fill"></i> Мои автомобили</h2>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addCarModal">
+        <i class="bi bi-plus-circle"></i> Добавить машину
+    </button>
+</div>
+
+<!-- Уведомления о ТО -->
+<div id="maintenanceAlerts"></div>
+
+<!-- Список машин -->
+<div id="carsList" class="row">
+    <div class="col-12 text-center">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Загрузка...</span>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно добавления машины -->
+<div class="modal fade" id="addCarModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Добавить автомобиль</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addCarForm">
+                    <div class="mb-3">
+                        <label class="form-label">Марка *</label>
+                        <input type="text" class="form-control" id="carBrand" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Модель *</label>
+                        <input type="text" class="form-control" id="carModel" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Год выпуска *</label>
+                        <input type="number" class="form-control" id="carYear" min="1900" max="2025" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Пробег (км) *</label>
+                        <input type="number" class="form-control" id="carMileage" min="0" required>
+                    </div>
+                    <div class="alert alert-danger d-none" id="carFormError"></div>
+                    <button type="submit" class="btn btn-primary w-100">Сохранить</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script>
+    const API_URL = '/api/cars/';
+
+    // Получить CSRF токен
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    const csrftoken = getCookie('csrftoken');
+
+    // Axios config
+    axios.defaults.headers.common['X-CSRFToken'] = csrftoken;
+
+    // Загрузка списка машин
+    async function loadCars() {
+        try {
+            const response = await axios.get(API_URL);
+            const cars = response.data;
+
+            const carsList = document.getElementById('carsList');
+
+            if (cars.length === 0) {
+                carsList.innerHTML = `
+                    <div class="col-12">
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i> У вас пока нет автомобилей. Добавьте первую машину!
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            carsList.innerHTML = cars.map(car => `
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <i class="bi bi-car-front-fill text-primary"></i> 
+                                ${car.brand} ${car.model}
+                            </h5>
+                            <p class="card-text">
+                                <strong>Год:</strong> ${car.year}<br>
+                                <strong>Пробег:</strong> ${car.mileage.toLocaleString()} км
+                            </p>
+                            <a href="/repairs/?car_id=${car.id}" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-tools"></i> История ремонтов
+                            </a>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteCar(${car.id})">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            // Проверка уведомлений о ТО
+            checkMaintenanceAlerts();
+
+        } catch (error) {
+            console.error('Ошибка загрузки машин:', error);
+            document.getElementById('carsList').innerHTML = `
+                <div class="col-12">
+                    <div class="alert alert-danger">Ошибка загрузки данных</div>
+                </div>
+            `;
+        }
+    }
+
+    // Добавление машины
+    document.getElementById('addCarForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const data = {
+            brand: document.getElementById('carBrand').value,
+            model: document.getElementById('carModel').value,
+            year: parseInt(document.getElementById('carYear').value),
+            mileage: parseInt(document.getElementById('carMileage').value)
+        };
+
+        try {
+            await axios.post(API_URL, data);
+
+            // Закрыть модалку
+            const modal = bootstrap.Modal.getInstance(document.getElementById('addCarModal'));
+            modal.hide();
+
+            // Очистить форму
+            document.getElementById('addCarForm').reset();
+            document.getElementById('carFormError').classList.add('d-none');
+
+            // Перезагрузить список
+            loadCars();
+
+        } catch (error) {
+            console.error('Ошибка добавления машины:', error);
+            const errorDiv = document.getElementById('carFormError');
+            errorDiv.textContent = 'Ошибка при добавлении машины';
+            errorDiv.classList.remove('d-none');
+        }
+    });
+
+    // Удаление машины
+    async function deleteCar(carId) {
+        if (!confirm('Удалить эту машину и все её ремонты?')) return;
+
+        try {
+            await axios.delete(`${API_URL}${carId}/`);
+            loadCars();
+        } catch (error) {
+            console.error('Ошибка удаления:', error);
+            alert('Ошибка при удалении машины');
+        }
+    }
+
+    // Проверка уведомлений о ТО
+    async function checkMaintenanceAlerts() {
+        try {
+            const response = await axios.get('/api/repairs/needs_maintenance/');
+            const repairs = response.data;
+
+            const alertsDiv = document.getElementById('maintenanceAlerts');
+
+            if (repairs.length > 0) {
+                alertsDiv.innerHTML = `
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                        <strong>Внимание!</strong> ${repairs.length} автомобил${repairs.length === 1 ? 'ь требует' : 'ей требуют'} технического обслуживания.
+                        <a href="/repairs/" class="alert-link">Посмотреть детали</a>
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error('Ошибка проверки ТО:', error);
+        }
+    }
+
+    // Загрузка при открытии страницы
+    loadCars();
+</script>
+{% endblock %}

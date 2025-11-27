@@ -58,3 +58,70 @@ class RepairViewSet(viewsets.ModelViewSet):
         repairs_needing_maintenance = [r for r in repairs if r.needs_maintenance()]
         serializer = self.get_serializer(repairs_needing_maintenance, many=True)
         return Response(serializer.data)
+
+
+
+from django.shortcuts import render, redirect
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth import login, logout, authenticate
+from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
+from django.contrib import messages
+
+
+# Страницы для фронтенда
+def home(request):
+    """Главная страница"""
+    return render(request, 'cars/home.html')
+
+
+def login_view(request):
+    """Страница логина"""
+    if request.user.is_authenticated:
+        return redirect('cars_list')
+    
+    if request.method == 'POST':
+        form = AuthenticationForm(data=request.POST)
+        if form.is_valid():
+            user = form.get_user()
+            login(request, user)
+            return redirect('cars_list')
+    else:
+        form = AuthenticationForm()
+    
+    return render(request, 'cars/login.html', {'form': form})
+
+
+def register_view(request):
+    """Страница регистрации"""
+    if request.user.is_authenticated:
+        return redirect('cars_list')
+    
+    if request.method == 'POST':
+        form = UserCreationForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            login(request, user)
+            messages.success(request, 'Регистрация успешна!')
+            return redirect('cars_list')
+    else:
+        form = UserCreationForm()
+    
+    return render(request, 'cars/register.html', {'form': form})
+
+
+def logout_view(request):
+    """Выход"""
+    logout(request)
+    return redirect('login')
+
+
+@login_required
+def cars_list_view(request):
+    """Страница списка машин"""
+    return render(request, 'cars/cars_list.html')
+
+
+@login_required
+def repairs_list_view(request):
+    """Страница списка ремонтов"""
+    return render(request, 'cars/repairs_list.html')        

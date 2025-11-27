@@ -17,12 +17,11 @@ class ServiceSerializer(serializers.ModelSerializer):
 
 class CarSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
-    user_id = serializers.IntegerField(write_only=True)
     
     class Meta:
         model = Car
-        fields = ['id', 'user', 'user_id', 'brand', 'model', 'year', 'mileage', 'created_at']
-        read_only_fields = ['created_at']
+        fields = ['id', 'user', 'brand', 'model', 'year', 'mileage', 'created_at']
+        read_only_fields = ['created_at', 'user']
 
 
 class RepairSerializer(serializers.ModelSerializer):
